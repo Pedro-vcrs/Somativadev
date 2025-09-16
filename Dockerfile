@@ -9,10 +9,10 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copia o código
-COPY . .
+COPY app.py .
 
 # Porta que será exposta
-EXPOSE 5000
+EXPOSE 8080
 
 # Comando para iniciar o app
 CMD ["python", "app.py"]
