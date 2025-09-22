@@ -1,52 +1,44 @@
-import json
-import pytest
-from src.app import app, get_weather
+from flask import Flask, jsonify
+import requests
 
-# --------- 
-def test_home_route():
-    client = app.test_client()
-    resp = client.get("/")
-    assert resp.status_code == 200
-    assert b"ClimaAgora API" in resp.data
+app = Flask(__name__)
 
-def test_weather_valid_city(monkeypatch):
-    # CORRIGIDO: usar "src.app.get_weather" em vez de "app.get_weather"
-    monkeypatch.setattr("src.app.get_weather", lambda city: {
-        "temperature": 25.5,
-        "windspeed": 10,
-        "time": "2025-09-21T12:00"
+def get_weather(city):
+    geo_url = f"https://geocoding-api.open-meteo.com/v1/search?name={city}&count=1"
+    geo_resp = requests.get(geo_url, timeout=10).json()
+
+    if "results" not in geo_resp or not geo_resp["results"]:
+        return None
+
+    lat = geo_resp["results"][0]["latitude"]
+    lon = geo_resp["results"][0]["longitude"]
+
+    weather_url = (
+        f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}"
+        "&current_weather=true"
+    )
+    weather_resp = requests.get(weather_url, timeout=10).json()
+    return weather_resp.get("current_weather")
+
+@app.route("/weather/<city>")
+def weather(city):
+    data = get_weather(city)
+    if not data:
+        return jsonify({"error": "Cidade não encontrada"}), 404
+    return jsonify({
+        "cidade": city,
+        "temperatura": data["temperature"],
+        "vento_kmh": data["windspeed"],
+        "hora_observacao": data["time"]
     })
-    client = app.test_client()
-    resp = client.get("/weather/Curitiba")
-    data = json.loads(resp.data)
-    assert resp.status_code == 200
-    assert data["cidade"] == "Curitiba"
-    assert "temperatura" in data
-    assert "vento_kmh" in data
 
-def test_weather_invalid_city(monkeypatch):
-    # CORRIGIDO: usar "src.app.get_weather" em vez de "app.get_weather"
-    monkeypatch.setattr("src.app.get_weather", lambda city: None)
-    client = app.test_client()
-    resp = client.get("/weather/NoPlace")
-    assert resp.status_code == 404
-    data = json.loads(resp.data)
-    assert "error" in data
+@app.route("/")
+def home():
+    return (
+        "<h2>ClimaAgora API</h2>"
+        "<p>Acesse /weather/&lt;Cidade&gt; para ver clima atual.<br>"
+        "Exemplo: /weather/Curitiba</p>"
+    )
 
-def test_get_weather_keys(monkeypatch):
-    sample = {"current_weather": {"temperature": 20, "windspeed": 5, "time": "t"}}
-    
-    def fake_geo(url, timeout=10):
-        if "geocoding" in url:
-            return type("R",(object,),{"json":lambda s={"results":[{"latitude":1,"longitude":1}]}: s})()
-        return type("R",(object,),{"json":lambda s=sample: sample})()
-    
-    # CORRIGIDO: usar "src.app.requests.get" para ser mais específico
-    monkeypatch.setattr("src.app.requests.get", fake_geo)
-    data = get_weather("Curitiba")
-    assert set(["temperature","windspeed","time"]).issubset(data.keys())
-
-def test_get_weather_no_results(monkeypatch):
-    # CORRIGIDO: usar "src.app.requests.get" para ser mais específico
-    monkeypatch.setattr("src.app.requests.get", lambda *a, **k: type("R",(object,),{"json":lambda s={"results": []}: s})())
-    assert get_weather("InvalidCity") is None
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8080)
