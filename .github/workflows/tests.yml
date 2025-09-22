@@ -22,4 +22,4 @@ jobs:
 
       - name: Run pytest
         run: |
-          pytest --maxfail=1 --disable-warnings -v
+          PYTHONPATH=. pytest --maxfail=1 --disable-warnings -v
