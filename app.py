@@ -37,7 +37,7 @@ def home():
     return (
         "<h2>ClimaAgora API</h2>"
         "<p>Acesse /weather/&lt;Cidade&gt; para ver clima atual.<br>"
-        "Exemplo: /weather/Curitiba</p>"
+        "Exemplo: /weather/Natal</p>"
     )
 
 if __name__ == "__main__":
