@@ -1,0 +1,65 @@
+import json
+import pytest
+from src.app import app, get_weather
+
+# --------- 
+def test_home_route():
+    client = app.test_client()
+    resp = client.get("/")
+    assert resp.status_code == 200
+    assert b"ClimaAgora API" in resp.data
+
+def test_weather_valid_city(monkeypatch):
+ 
+    monkeypatch.setattr("src.app.get_weather", lambda city: {
+        "temperature": 25.5,
+        "windspeed": 10,
+        "time": "2025-09-21T12:00"
+    })
+    client = app.test_client()
+    resp = client.get("/weather/Curitiba")
+    data = json.loads(resp.data)
+    assert resp.status_code == 200
+    assert data["cidade"] == "Curitiba"
+    assert "temperatura" in data
+    assert "vento_kmh" in data
+
+def test_weather_invalid_city(monkeypatch):
+   
+    monkeypatch.setattr("src.app.get_weather", lambda city: None)
+    client = app.test_client()
+    resp = client.get("/weather/NoPlace")
+    assert resp.status_code == 404
+    data = json.loads(resp.data)
+    assert "error" in data
+
+def test_get_weather_keys(monkeypatch):
+    sample = {"current_weather": {"temperature": 20, "windspeed": 5, "time": "t"}}
+    
+    def fake_get(url, timeout=10):
+        if "geocoding" in url:
+           
+            return type("MockResponse", (), {
+                "json": lambda *args, **kwargs: {"results": [{"latitude": 25.4, "longitude": 49.3}]}
+            })()
+        else:
+           
+            return type("MockResponse", (), {
+                "json": lambda *args, **kwargs: sample
+            })()
+    
+    
+    monkeypatch.setattr("src.app.requests.get", fake_get)
+    data = get_weather("Curitiba")
+    assert set(["temperature","windspeed","time"]).issubset(data.keys())
+
+def test_get_weather_no_results(monkeypatch):
+    def fake_get_no_results(url, timeout=10):
+       
+        return type("MockResponse", (), {
+            "json": lambda *args, **kwargs: {"results": []}
+        })()
+    
+    
+    monkeypatch.setattr("src.app.requests.get", fake_get_no_results)
+    assert get_weather("InvalidCity") is None
