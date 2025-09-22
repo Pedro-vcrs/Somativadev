@@ -1,6 +1,6 @@
 import json
 import pytest
-from app import app, get_weather
+from src.app import app, get_weather
 
 # --------- 
 def test_home_route():
