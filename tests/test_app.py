@@ -10,7 +10,7 @@ def test_home_route():
     assert b"ClimaAgora API" in resp.data
 
 def test_weather_valid_city(monkeypatch):
-   
+  
     monkeypatch.setattr("src.app.get_weather", lambda city: {
         "temperature": 25.5,
         "windspeed": 10,
@@ -25,7 +25,7 @@ def test_weather_valid_city(monkeypatch):
     assert "vento_kmh" in data
 
 def test_weather_invalid_city(monkeypatch):
-    
+
     monkeypatch.setattr("src.app.get_weather", lambda city: None)
     client = app.test_client()
     resp = client.get("/weather/NoPlace")
@@ -36,17 +36,30 @@ def test_weather_invalid_city(monkeypatch):
 def test_get_weather_keys(monkeypatch):
     sample = {"current_weather": {"temperature": 20, "windspeed": 5, "time": "t"}}
     
-    def fake_geo(url, timeout=10):
+    def fake_get(url, timeout=10):
         if "geocoding" in url:
-            return type("R",(object,),{"json":lambda s={"results":[{"latitude":1,"longitude":1}]}: s})()
-        return type("R",(object,),{"json":lambda s=sample: sample})()
+      
+            return type("MockResponse", (), {
+                "json": lambda: {"results": [{"latitude": 25.4, "longitude": 49.3}]}
+            })()
+        else:
+            
+            return type("MockResponse", (), {
+                "json": lambda: sample
+            })()
     
-    
-    monkeypatch.setattr("src.app.requests.get", fake_geo)
+  
+    monkeypatch.setattr("src.app.requests.get", fake_get)
     data = get_weather("Curitiba")
     assert set(["temperature","windspeed","time"]).issubset(data.keys())
 
 def test_get_weather_no_results(monkeypatch):
+    def fake_get_no_results(url, timeout=10):
+      
+        return type("MockResponse", (), {
+            "json": lambda: {"results": []}
+        })()
     
-    monkeypatch.setattr("src.app.requests.get", lambda *a, **k: type("R",(object,),{"json":lambda s={"results": []}: s})())
+   
+    monkeypatch.setattr("src.app.requests.get", fake_get_no_results)
     assert get_weather("InvalidCity") is None
